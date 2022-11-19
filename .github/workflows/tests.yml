@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 jobs:
   tests:
+    if: ${{ false }}
     strategy:
       # We support Node Current, LTS, and Maintenance. See
       # https://nodejs.org/en/about/releases/ for release schedule.
@@ -87,6 +88,7 @@ jobs:
       - run: npm run test:cli-options
 
   lint-and-format:
+    if: ${{ false }}
     timeout-minutes: 5
     runs-on: ubuntu-22.04
     steps:
