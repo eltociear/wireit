@@ -68,11 +68,11 @@ jobs:
       - run: xvfb-run -a npm test
         if: runner.os == 'Linux' && matrix.node != 14
 
-# yarn 3.x (aka "Berry") can only be installed via corepack and not npm, which
-# complicates testing. So, the main set of tests above cover npm, pnpm, and yarn
-# 1.x, while this dedicated job covers just yarn 3.x. We only run
-# "test:cli-options" because that's where he yarn-specific tests live.
- yarn3:
+  # yarn 3.x (aka "Berry") can only be installed via corepack and not npm, which
+  # complicates testing. So, the main set of tests above cover npm, pnpm, and yarn
+  # 1.x, while this dedicated job covers just yarn 3.x. We only run
+  # "test:cli-options" because that's where he yarn-specific tests live.
+  yarn3:
     timeout-minutes: 5
     runs-on: ubuntu-22.04
     steps:
