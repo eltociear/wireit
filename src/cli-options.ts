@@ -322,6 +322,7 @@ function findRemainingArgsFromNpmConfigArgv(script: ScriptReference): string[] {
   // name first appeared in the "original" array.
   const scriptNameIdx = configArgv.original.indexOf(script.name);
   if (scriptNameIdx === -1) {
+    console.log(process.argv);
     console.error(
       '⚠️ Wireit could not find the script name in ' +
         'the "npm_config_argv" environment variable. ' +

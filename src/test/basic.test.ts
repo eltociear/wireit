@@ -1187,4 +1187,108 @@ test(
   })
 );
 
+for (const tool of ['npm', 'yarn', 'pnpm']) {
+  test.only(
+    `can run a wireit script with \`${tool}\``,
+    timeout(async ({rig}) => {
+      const cmd = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            actual: 'wireit',
+          },
+          wireit: {
+            actual: {
+              command: cmd.command,
+            },
+          },
+        },
+      });
+      const wireit = rig.exec(`${tool} run actual`);
+      const inv = await cmd.nextInvocation();
+      inv.exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(cmd.numInvocations, 1);
+    })
+  );
+
+  test.only(
+    `can pass argument to wireit script with \`${tool}\``,
+    timeout(async ({rig}) => {
+      const cmd = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            actual: 'wireit',
+          },
+          wireit: {
+            actual: {
+              command: cmd.command,
+            },
+          },
+        },
+      });
+      const wireit = rig.exec(`${tool} run actual -- --foo=bar`);
+      const inv = await cmd.nextInvocation();
+      const env = await inv.environment();
+      assert.equal(env.argv[3], '--foo=bar');
+      inv.exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(cmd.numInvocations, 1);
+    })
+  );
+
+  test.only(
+    `can invoke wireit script with proxied \`${tool}\``,
+    timeout(async ({rig}) => {
+      const cmd = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            proxy: `${tool} run actual`,
+            actual: 'wireit',
+          },
+          wireit: {
+            actual: {
+              command: cmd.command,
+            },
+          },
+        },
+      });
+      const wireit = rig.exec(`${tool} run proxy`);
+      const inv = await cmd.nextInvocation();
+      inv.exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(cmd.numInvocations, 1);
+    })
+  );
+
+  test.only(
+    `can pass argument to wireit script with proxied \`${tool}\``,
+    timeout(async ({rig}) => {
+      const cmd = await rig.newCommand();
+      await rig.write({
+        'package.json': {
+          scripts: {
+            proxy: `${tool} run actual -- --foo=bar`,
+            actual: 'wireit',
+          },
+          wireit: {
+            actual: {
+              command: cmd.command,
+            },
+          },
+        },
+      });
+      const wireit = rig.exec(`${tool} run proxy`);
+      const inv = await cmd.nextInvocation();
+      const env = await inv.environment();
+      assert.equal(env.argv[3], '--foo=bar');
+      inv.exit(0);
+      assert.equal((await wireit.exit).code, 0);
+      assert.equal(cmd.numInvocations, 1);
+    })
+  );
+}
+
 test.run();
