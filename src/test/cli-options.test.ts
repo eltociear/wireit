@@ -99,6 +99,17 @@ async function assertFailure(
 
 for (const agent of ['npm', 'yarn', 'pnpm']) {
   test(
+    `${agent} --version`,
+    timeout(async ({rig}) => {
+      const child = await rig.exec(`${agent} --version`);
+      const result = await child.exit;
+      console.log(`${agent} --version`);
+      console.log(result.stdout);
+      console.log(result.stderr);
+    })
+  );
+
+  test(
     `${agent} run main`,
     timeout(async ({rig}) => {
       await assertOptions(rig, `${agent} run main`, {
