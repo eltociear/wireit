@@ -6,14 +6,35 @@
 
 import * as pathlib from 'path';
 import * as assert from 'uvu/assert';
+import * as fs from 'fs';
 import {suite} from 'uvu';
 import {timeout} from './util/uvu-timeout.js';
 import {WireitTestRig} from './util/test-rig.js';
 import {Options} from '../cli-options.js';
 import {Result} from '../error.js';
 import {Failure} from '../event.js';
+import {spawnSync} from 'child_process';
 
 const test = suite<{rig: WireitTestRig}>();
+
+const YARN_3_BINARY = (() => {
+  // Iterate through every PATH, looking for a yarn binary.
+  for (const path of process.env.PATH!.split(pathlib.delimiter)) {
+    const yarnPath = pathlib.join(path, 'yarn');
+    try {
+      fs.accessSync(yarnPath, fs.constants.X_OK);
+    } catch {
+      continue;
+    }
+    // Spawn yarn to get the version.
+    const {stdout} = spawnSync(yarnPath, ['--version']);
+    if (stdout.toString().trim().startsWith('3.')) {
+      console.log({yarnPath});
+      return yarnPath;
+    }
+  }
+  throw new Error('Could not find yarn3 binary');
+})();
 
 test.before.each(async (ctx) => {
   try {
@@ -97,17 +118,29 @@ async function assertFailure(
   });
 }
 
-for (const agent of ['npm', 'yarn', 'pnpm']) {
+for (const agent of [YARN_3_BINARY]) {
+  // for (const agent of ['npm', 'yarn', 'pnpm', YARN_3_BINARY]) {
+
   test(
     `${agent} --version`,
     timeout(async ({rig}) => {
-      const child = await rig.exec(`${agent} --version`);
+      await rig.write('yarn.lock', '');
+      const child = await rig.exec(`${agent} --version`, {cwd: rig.temp});
       const result = await child.exit;
-      console.log(`${agent} --version`);
-      console.log(result.stdout);
-      console.log(result.stderr);
+      console.log(`\n${agent} ${result.stdout.trim()}`);
     })
   );
+
+  if (agent === YARN_3_BINARY) {
+    test(
+      `${agent} install yarn3`,
+      timeout(async ({rig}) => {
+        const child = await rig.exec(`${agent} install`, {cwd: rig.temp});
+        const result = await child.exit;
+        console.log(`\n${agent} ${result.stdout.trim()}`);
+      })
+    );
+  }
 
   test(
     `${agent} run main`,

@@ -9,9 +9,7 @@
     "url": "https://github.com/google/wireit.git"
   },
   "type": "module",
-  "bin": {
-    "wireit": "bin/wireit.js"
-  },
+  "bin": "bin/wireit.js",
   "files": [
     "bin/wireit.js",
     "lib/**/*.js",
