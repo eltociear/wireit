@@ -49,7 +49,8 @@ const TEST_BINARY_COMMAND = `node ${pathlib.join(
 async function getOptionsResult(
   rig: WireitTestRig,
   command: string,
-  env?: Record<string, string | undefined>
+  env?: Record<string, string | undefined>,
+  extraScripts?: Record<string, string>
 ): Promise<Result<Options>> {
   await rig.write({
     'package.json': {
@@ -57,6 +58,7 @@ async function getOptionsResult(
         main: TEST_BINARY_COMMAND,
         test: TEST_BINARY_COMMAND,
         start: TEST_BINARY_COMMAND,
+        ...extraScripts,
       },
     },
   });
@@ -68,9 +70,10 @@ async function assertOptions(
   rig: WireitTestRig,
   command: string,
   expected: Partial<Options> & Pick<Options, 'script'>,
-  env?: Record<string, string | undefined>
+  env?: Record<string, string | undefined>,
+  extraScripts?: Record<string, string>
 ) {
-  const result = await getOptionsResult(rig, command, env);
+  const result = await getOptionsResult(rig, command, env, extraScripts);
   assert.equal(result, {
     ok: true,
     value: {
@@ -275,6 +278,76 @@ for (const agent of ['npm', 'yarn', 'pnpm']) {
           `In an upcoming release, the "watch" argument will be passed to the script, ` +
           `consistent with how npm usually behaves.`,
       });
+    })
+  );
+
+  test(
+    `${agent} recurse --watch -- --extra`,
+    timeout(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${agent} run recurse`,
+        {
+          script: {
+            packageDir: rig.temp,
+            name: 'start',
+          },
+          extraArgs: ['--extra'],
+          watch: true,
+        },
+        undefined,
+        {
+          recurse: `${agent} run start --watch -- --extra`,
+        }
+      );
+    })
+  );
+
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  (agent === 'yarn' ? test.skip : test)(
+    `${agent} doubleRecurse --watch -- --extra`,
+    timeout(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${agent} run doubleRecurse`,
+        {
+          script: {
+            packageDir: rig.temp,
+            name: 'start',
+          },
+          extraArgs: ['--extra'],
+          watch: true,
+        },
+        undefined,
+        {
+          doubleRecurse: `${agent} run recurse`,
+          recurse: `${agent} run start --watch -- --extra`,
+        }
+      );
+    })
+  );
+
+  test(
+    `${agent} recurse -- --with "some complicated"\t"$ARG_PASSING"`,
+    timeout(async ({rig}) => {
+      await assertOptions(
+        rig,
+        `${agent} run recurse --potato`,
+        {
+          script: {
+            packageDir: rig.temp,
+            name: 'start',
+          },
+          extraArgs: ['--with', 'some complicated', 'arg passing', '--potato'],
+          watch: false,
+        },
+        {
+          ARG_PASSING: 'arg passing',
+        },
+        {
+          recurse: `${agent} run start -- --with "some complicated"\t"$ARG_PASSING"`,
+        }
+      );
     })
   );
 }

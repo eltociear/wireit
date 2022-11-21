@@ -7,6 +7,7 @@
 import * as os from 'os';
 import * as fs from 'fs/promises';
 import * as pathlib from 'path';
+import {execSync} from 'child_process';
 import {Result} from './error.js';
 import {DefaultLogger} from './logging/default-logger.js';
 import {ScriptReference} from './config.js';
@@ -322,6 +323,39 @@ function findRemainingArgsFromNpmConfigArgv(script: ScriptReference): string[] {
   // name first appeared in the "original" array.
   const scriptNameIdx = configArgv.original.indexOf(script.name);
   if (scriptNameIdx === -1) {
+    // We're probably dealing with a recursive invocation of `yarn run` using
+    // Yarn 1.x, such as `"watch": "yarn run build --watch"` invoked with `yarn
+    // run watch`.
+    //
+    // Since we're in Yarn 1.x, we depend on the `npm_config_argv` environment
+    // variable to figure out what arguments have been passed. However, Yarn 1.x
+    // has an issue where `npm_config_argv` is always stuck at the value of the
+    // first script in the chain, instead of the last. E.g. it contains the
+    // arguments for `yarn run watch`, but not what we actually want, which was
+    // `yarn run build --watch`.
+    //
+    // We can work around this by looking at the command of the script that
+    // `npm_config_ragv` *does* give us, and following it forward to reconstruct
+    // the arguments for the script we *actually* care about.
+    //
+    // Note in theory there could be chains of length >2, but we only handle
+    // length 2.
+    console.log({configArgvStr});
+    // Find the first script
+    if (configArgv.original[0] === 'run') {
+      const firstScript = configArgv.original[1];
+      // TODO(aomarks) The script name gets normalized, how?
+      const firstScriptDefinition =
+        process.env[`npm_package_scripts_${firstScript}`] ?? '';
+      console.log({firstScriptDefinition, name: script.name});
+      const [arg0, arg1, arg2] = firstScriptDefinition.split(/\s+/);
+      if (arg0 === 'yarn' && arg1 === 'run' && arg2 === script.name) {
+        const x = parseArgumentsFromShellCommand(firstScriptDefinition);
+        console.log({x});
+        return x;
+      }
+    }
+    console.log(process.env);
     console.error(
       '⚠️ Wireit could not find the script name in ' +
         'the "npm_config_argv" environment variable. ' +
@@ -333,6 +367,26 @@ function findRemainingArgsFromNpmConfigArgv(script: ScriptReference): string[] {
 }
 
 /**
+ * Parse the given command into an array of arguments using the default shell.
+ *
+ * Note this function spawns a child process to perform parsing, because it
+ * would be too complicated to re-implement the various argument parsing
+ * behaviors of each shell. It does this synchronously, because as currently
+ * used there is no advantage to doing it asynchronously.
+ */
+function parseArgumentsFromShellCommand(command: string): string[] {
+  // Construct an inline Node program that simply prints the arguments it
+  // receives as JSON. Since execSync goes through the shell, we can simply
+  // append the command
+  const stdout = execSync(
+    `node -e ` +
+      `"console.log(JSON.stringify(process.argv.slice(1)));"` +
+      ` -- ${command}`
+  );
+  return JSON.parse(stdout.toString());
+}
+
+/**
  * Given a list of remaining command-line arguments (the arguments after e.g.
  * "yarn run build"), parse out the arguments that are Wireit options, warn
  * about any unrecognized options, and return everything after a `"--"` argument
@@ -341,6 +395,7 @@ function findRemainingArgsFromNpmConfigArgv(script: ScriptReference): string[] {
 function parseRemainingArgs(
   args: string[]
 ): Pick<Options, 'watch' | 'extraArgs'> {
+  console.log('REAMINING', {args});
   let watch = false;
   let extraArgs: string[] = [];
   const unrecognized = [];
